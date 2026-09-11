@@ -1,6 +1,4 @@
-Here is the updated, production-ready `README.md` incorporating all event specifics, hackathon credentials (Cloudforge by ABV-IIITM Gwalior hosted on Unstop), developer attribution, and copyright details while strictly excluding personal phone numbers:
 
-```markdown
 <div align="center">
 
 # ⚡ URJA-RTA: Real-Time Autonomous Grid Management System
