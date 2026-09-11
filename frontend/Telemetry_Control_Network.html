@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-blue">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URJA RTA | Industrial SCADA Topology & Substation SLD Engine</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    .dark-blue {
+      --bg-main: #040814;
+      --bg-panel: #0a1124;
+      --bg-card: #111c35;
+      --border-color: #1e2f52;
+      --text-main: #f8fafc;
+      --text-muted: #64748b;
+      --grid-line: rgba(30, 47, 82, 0.4);
+      --accent-glow: rgba(56, 189, 248, 0.2);
+    }
+    .light-white {
+      --bg-main: #f1f5f9;
+      --bg-panel: #ffffff;
+      --bg-card: #e2e8f0;
+      --border-color: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --grid-line: rgba(203, 213, 225, 0.6);
+      --accent-glow: rgba(2, 132, 199, 0.1);
+    }
+    .slate-grey {
+      --bg-main: #121214;
+      --bg-panel: #1d1d21;
+      --bg-card: #2a2a30;
+      --border-color: #3f3f46;
+      --text-main: #fafafa;
+      --text-muted: #a1a1aa;
+      --grid-line: rgba(63, 63, 70, 0.4);
+      --accent-glow: rgba(161, 161, 170, 0.1);
+    }
+    body { background-color: var(--bg-main); color: var(--text-main); transition: background-color 0.3s ease, color 0.3s ease; }
+    .panel-bg { background-color: var(--bg-panel); }
+    .card-bg { background-color: var(--bg-card); }
+    .border-theme { border-color: var(--border-color); }
+    .text-muted-theme { color: var(--text-muted); }
+    
+    .canvas-grid {
+      background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 36px 36px;
+    }
+
+    .pulse-packet {
+      stroke-dasharray: 8, 12;
+      animation: packetFlow 1.0s linear infinite;
+    }
+    .pulse-packet-fast {
+      stroke-dasharray: 6, 8;
+      animation: packetFlow 0.5s linear infinite;
+    }
+    @keyframes packetFlow {
+      from { stroke-dashoffset: 40; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    .node-card {
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      user-select: none;
+    }
+    .node-card:hover {
+      box-shadow: 0 10px 25px -5px var(--accent-glow);
+    }
+    .dragging {
+      opacity: 0.85;
+      cursor: grabbing !important;
+      z-index: 50 !important;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden font-sans select-none">
+
+  <!-- Header Section -->
+  <header class="panel-bg border-b border-theme px-6 py-3 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="bg-sky-500/10 p-2.5 rounded-xl border border-sky-500/20">
+        <i data-lucide="network" class="w-6 h-6 text-sky-400"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-wide flex items-center gap-2">
+          URJA RTA: Dynamic Topology & Substation SLD Engine
+          <span class="text-[10px] font-mono bg-sky-500/10 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full">
+            IEC 61850 SLD / ICCP TASE.2 / OpenADR 2.0b
+          </span>
+        </h1>
+        <p class="text-xs text-muted-theme">Interactive Drag-and-Drop Node Architecture with Real-Time Substation Breaker Telemetry</p>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-4">
+      <!-- Live Sync Status -->
+      <div class="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-mono text-emerald-400">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span>ICCP MESH: SYNCED (0.38ms)</span>
+      </div>
+
+      <div class="flex items-center space-x-2 text-xs font-mono">
+        <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+        <span id="arch-timestamp" class="text-amber-300 font-semibold">2026-09-10T00:18:19Z</span>
+      </div>
+
+      <!-- Theme Selector -->
+      <div class="flex card-bg p-1 rounded-lg border border-theme space-x-1 text-xs font-mono">
+        <button onclick="setTheme('dark-blue')" class="px-2.5 py-1 rounded hover:bg-sky-500/20 transition">Dark Blue</button>
+        <button onclick="setTheme('light-white')" class="px-2.5 py-1 rounded hover:bg-sky-500/20 transition">Light White</button>
+        <button onclick="setTheme('slate-grey')" class="px-2.5 py-1 rounded hover:bg-sky-500/20 transition">Slate Grey</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Architecture Canvas Viewport -->
+  <div class="flex flex-1 overflow-hidden">
+    
+    <!-- Topology Canvas & Dynamic Overlay -->
+    <div id="canvas-container" class="flex-1 canvas-grid relative overflow-hidden flex flex-col justify-between cursor-crosshair">
+      
+      <!-- SVG Vector Connections Overlay -->
+      <svg id="arch-svg-layer" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
+      
+      <!-- Interactive Dynamic Nodes Container -->
+      <div id="arch-nodes-layer" class="relative w-full h-full z-10"></div>
+
+      <!-- Bottom System Status Bar -->
+      <div class="z-20 m-4 card-bg border border-theme rounded-xl p-3 flex justify-between items-center font-mono text-xs shadow-2xl backdrop-blur-md">
+        <div class="flex items-center space-x-6">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span class="text-muted-theme">Substation Breaker Status: <strong id="sld-breaker-state" class="text-emerald-400">ALL CLOSED (100% Flow)</strong></span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            <span class="text-muted-theme">RTU Telemetry Cycle: <strong class="text-slate-200">10ms Fast-Poll</strong></span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+            <span class="text-muted-theme">Dynamic Canvas Dragging: <strong class="text-slate-200">ENABLED</strong></span>
+          </div>
+        </div>
+
+        <div id="topological-status" class="px-3 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1.5">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>N-1 MESH TOPOLOGY INTACT</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Control & Deep Inspection Panel -->
+    <div class="w-96 panel-bg border-l border-theme p-4 flex flex-col space-y-4 overflow-y-auto shrink-0 z-20">
+      
+      <!-- Panel Header -->
+      <div class="flex items-center justify-between border-b border-theme pb-2">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2 font-mono">
+          <i data-lucide="cpu" class="w-4 h-4"></i> Node & Substation Inspector
+        </h2>
+        <span class="text-[10px] font-mono bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded">
+          IEC 61850 SLD
+        </span>
+      </div>
+
+      <!-- Real-Time Metrics Summary Card -->
+      <div class="card-bg p-3.5 rounded-xl border border-theme font-mono text-xs space-y-2">
+        <div class="flex justify-between items-center">
+          <span class="text-muted-theme">Grid Jitter (P99):</span>
+          <span id="metric-jitter" class="text-emerald-400 font-bold">0.74 ms</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-muted-theme">Telemetry Throughput:</span>
+          <span id="metric-bandwidth" class="text-sky-400 font-bold">22.8 Gbps</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-muted-theme">IEC 60870-5-104 Loss:</span>
+          <span id="metric-loss" class="text-emerald-400 font-bold">0.0000 %</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-muted-theme">Substation Bus Voltage:</span>
+          <span id="metric-busbar" class="text-amber-300 font-bold">765.2 kV (Normal)</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-muted-theme">Transformer Temp (\(T_{\text{oil}}\)):</span>
+          <span id="metric-temp" class="text-emerald-400 font-bold">48.2 °C</span>
+        </div>
+      </div>
+
+      <!-- Substation Single-Line Diagram (SLD) View -->
+      <div class="card-bg p-4 rounded-xl border border-theme space-y-3 font-mono text-xs">
+        <h3 class="font-bold text-sky-400 border-b border-theme pb-1.5 flex items-center justify-between">
+          <span>Substation SLD Breaker Matrix</span>
+          <i data-lucide="workflow" class="w-4 h-4 text-sky-400"></i>
+        </h3>
+        <div id="sld-container" class="space-y-2 bg-black/40 p-3 rounded-lg border border-theme">
+          <div class="flex justify-between items-center">
+            <span class="text-slate-300 font-bold">Busbar 1 (765kV Main):</span>
+            <span class="text-emerald-400 font-bold">ENERGIZED</span>
+          </div>
+          <div class="flex justify-between items-center pt-1 border-t border-theme/50">
+            <span class="text-muted-theme">CB-501 (Incomer 1):</span>
+            <button id="btn-cb1" onclick="toggleBreaker('cb1')" class="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]">CLOSED</button>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-muted-theme">CB-502 (Feeder Out):</span>
+            <button id="btn-cb2" onclick="toggleBreaker('cb2')" class="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]">CLOSED</button>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-muted-theme">CB-503 (Tie Breaker):</span>
+            <button id="btn-cb3" onclick="toggleBreaker('cb3')" class="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-[10px]">STANDBY (OPEN)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Node Detail Inspector Drawer -->
+      <div class="card-bg p-4 rounded-xl border border-theme space-y-3 font-mono text-xs">
+        <h3 class="font-bold text-sky-400 border-b border-theme pb-1.5 flex items-center justify-between">
+          <span>Node Telemetry Inspector</span>
+          <i data-lucide="search-code" class="w-4 h-4 text-sky-400"></i>
+        </h3>
+        <div id="inspector-content" class="space-y-2 text-[11px] text-muted-theme">
+          <p>Click or drag any node on the canvas to inspect SCADA parameters, active power flow, and protocol telemetry.</p>
+        </div>
+      </div>
+
+      <!-- Fault Injection & Stress Testing Controls -->
+      <div class="card-bg p-4 rounded-xl border border-theme space-y-2.5 text-xs font-mono">
+        <h3 class="font-bold text-amber-400 flex items-center gap-1.5">
+          <i data-lucide="zap-off" class="w-4 h-4"></i> Stress Testing Controls
+        </h3>
+
+        <button onclick="simulateFiberOutage()" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+          <i data-lucide="unplug" class="w-3.5 h-3.5"></i> Sever Western RLDC Fiber
+        </button>
+
+        <button onclick="simulateNetworkSpike()" class="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+          <i data-lucide="activity" class="w-3.5 h-3.5"></i> Inject SCADA Burst Traffic
+        </button>
+
+        <button onclick="resetTopology()" class="w-full py-2 card-bg hover:bg-slate-700/50 border border-theme text-muted-theme rounded-lg font-semibold transition flex items-center justify-center gap-2">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Reset Architecture Grid
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Node Graph State
+    const nodes = [
+      { id: 'nldc', label: 'NLDC Central Master', tier: 'Tier 1 National', x: 480, y: 70, status: 'HEALTHY', load: '14.2 GW Managed', ip: '10.100.0.1', protocol: 'ICCP / TASE.2', rtu: 'PRIMARY ACTIVE', ping: '0.2 ms' },
+      { id: 'n-rldc', label: 'Northern RLDC', tier: 'Tier 2 Regional', x: 220, y: 210, status: 'HEALTHY', load: '4.85 GW Managed', ip: '10.100.1.10', protocol: 'IEC 60870-5-104', rtu: 'SYNCED', ping: '1.2 ms' },
+      { id: 'w-rldc', label: 'Western RLDC', tier: 'Tier 2 Regional', x: 480, y: 210, status: 'HEALTHY', load: '5.30 GW Managed', ip: '10.100.2.10', protocol: 'IEC 60870-5-104', rtu: 'SYNCED', ping: '1.4 ms' },
+      { id: 's-rldc', label: 'Southern RLDC', tier: 'Tier 2 Regional', x: 740, y: 210, status: 'HEALTHY', load: '4.05 GW Managed', ip: '10.100.3.10', protocol: 'IEC 60870-5-104', rtu: 'SYNCED', ping: '1.8 ms' },
+      { id: 'sldc-up', label: 'UPPTCL Substation 765kV', tier: 'Tier 3 Grid', x: 130, y: 390, status: 'HEALTHY', load: '2,100 MW', ip: '10.201.12.4', protocol: 'IEC 61850 GOOSE', rtu: 'ONLINE', ping: '3.1 ms' },
+      { id: 'sldc-pb', label: 'PSTCL Substation 400kV', tier: 'Tier 3 Grid', x: 310, y: 390, status: 'HEALTHY', load: '2,750 MW', ip: '10.201.14.8', protocol: 'IEC 61850 GOOSE', rtu: 'ONLINE', ping: '2.8 ms' },
+      { id: 'sldc-mh', label: 'MSETCL Grid Node', tier: 'Tier 3 Grid', x: 480, y: 390, status: 'HEALTHY', load: '5,300 MW', ip: '10.201.22.1', protocol: 'IEC 61850 GOOSE', rtu: 'ONLINE', ping: '2.2 ms' },
+      { id: 'sldc-ka', label: 'KPTCL Feeder Hub', tier: 'Tier 3 Grid', x: 650, y: 390, status: 'HEALTHY', load: '1,950 MW', ip: '10.201.31.9', protocol: 'IEC 61850 GOOSE', rtu: 'ONLINE', ping: '4.2 ms' },
+      { id: 'sldc-tn', label: 'TANTRANSCO Grid Node', tier: 'Tier 3 Grid', x: 830, y: 390, status: 'HEALTHY', load: '2,100 MW', ip: '10.201.40.2', protocol: 'IEC 61850 GOOSE', rtu: 'ONLINE', ping: '3.9 ms' }
+    ];
+
+    const links = [
+      { from: 'nldc', to: 'n-rldc', primary: true, status: 'ACTIVE' },
+      { from: 'nldc', to: 'w-rldc', primary: true, status: 'ACTIVE' },
+      { from: 'nldc', to: 's-rldc', primary: true, status: 'ACTIVE' },
+      { from: 'n-rldc', to: 'sldc-up', primary: true, status: 'ACTIVE' },
+      { from: 'n-rldc', to: 'sldc-pb', primary: true, status: 'ACTIVE' },
+      { from: 'w-rldc', to: 'sldc-mh', primary: true, status: 'ACTIVE' },
+      { from: 's-rldc', to: 'sldc-ka', primary: true, status: 'ACTIVE' },
+      { from: 's-rldc', to: 'sldc-tn', primary: true, status: 'ACTIVE' },
+      { from: 'n-rldc', to: 'w-rldc', primary: false, status: 'STANDBY' },
+      { from: 'w-rldc', to: 's-rldc', primary: false, status: 'STANDBY' }
+    ];
+
+    const cbState = { cb1: true, cb2: true, cb3: false };
+    let draggedNode = null;
+    let dragOffset = { x: 0, y: 0 };
+
+    function setTheme(themeName) {
+      document.documentElement.className = themeName;
+    }
+
+    function toggleBreaker(cbId) {
+      cbState[cbId] = !cbState[cbId];
+      const btn = document.getElementById(`btn-${cbId}`);
+      if (cbState[cbId]) {
+        btn.innerText = 'CLOSED';
+        btn.className = 'px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]';
+      } else {
+        btn.innerText = 'TRIPPED / OPEN';
+        btn.className = 'px-2 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-red-300 font-bold text-[10px]';
+      }
+
+      const allClosed = cbState.cb1 && cbState.cb2;
+      document.getElementById('sld-breaker-state').innerText = allClosed ? 'ALL CLOSED (100% Flow)' : 'TRIPPED / PARTIAL FLOW';
+      document.getElementById('sld-breaker-state').className = allClosed ? 'text-emerald-400' : 'text-red-400 font-bold';
+    }
+
+    function inspectNode(nodeId) {
+      const node = nodes.find(n => n.id === nodeId);
+      const content = document.getElementById('inspector-content');
+      content.innerHTML = `
+        <div class="text-sky-300 font-bold text-xs border-b border-theme pb-1">${node.label}</div>
+        <div class="flex justify-between pt-1"><span>IP Address:</span><span class="text-slate-200">${node.ip}</span></div>
+        <div class="flex justify-between"><span>Hierarchy Level:</span><span class="text-slate-200">${node.tier}</span></div>
+        <div class="flex justify-between"><span>Control Load:</span><span class="text-emerald-400 font-bold">${node.load}</span></div>
+        <div class="flex justify-between"><span>Protocol Layer:</span><span class="text-amber-300">${node.protocol}</span></div>
+        <div class="flex justify-between"><span>RTU Telemetry:</span><span class="text-sky-300">${node.rtu}</span></div>
+        <div class="flex justify-between"><span>Latency Ping:</span><span class="text-emerald-400">${node.ping}</span></div>
+        <div class="flex justify-between pt-1 border-t border-theme"><span>Health Status:</span><span class="${node.status === 'HEALTHY' ? 'text-emerald-400' : 'text-red-400'} font-bold">${node.status}</span></div>
+      `;
+    }
+
+    function renderTopology() {
+      const svg = document.getElementById('arch-svg-layer');
+      const container = document.getElementById('arch-nodes-layer');
+      
+      svg.innerHTML = '';
+      container.innerHTML = '';
+
+      // Draw SVG Link Connections
+      links.forEach(link => {
+        const source = nodes.find(n => n.id === link.from);
+        const target = nodes.find(n => n.id === link.to);
+
+        const isBroken = link.status === 'BROKEN';
+        const isRerouted = link.status === 'REROUTED';
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', source.x);
+        line.setAttribute('y1', source.y);
+        line.setAttribute('x2', target.x);
+        line.setAttribute('y2', target.y);
+
+        if (isBroken) {
+          line.setAttribute('stroke', '#ef4444');
+          line.setAttribute('stroke-width', '2');
+          line.setAttribute('stroke-dasharray', '6 6');
+        } else if (isRerouted) {
+          line.setAttribute('stroke', '#f59e0b');
+          line.setAttribute('stroke-width', '3');
+          line.setAttribute('class', 'pulse-packet-fast');
+        } else if (link.primary) {
+          line.setAttribute('stroke', '#38bdf8');
+          line.setAttribute('stroke-width', '2.5');
+          line.setAttribute('class', 'pulse-packet');
+        } else {
+          line.setAttribute('stroke', 'rgba(148, 163, 184, 0.25)');
+          line.setAttribute('stroke-width', '1.5');
+          line.setAttribute('stroke-dasharray', '4 4');
+        }
+
+        svg.appendChild(line);
+      });
+
+      // Draw Dragable Node Cards
+      nodes.forEach(node => {
+        const card = document.createElement('div');
+        card.style.left = `${node.x}px`;
+        card.style.top = `${node.y}px`;
+        card.className = `absolute transform -translate-x-1/2 -translate-y-1/2 w-48 card-bg border ${
+          node.status === 'CRITICAL' 
+            ? 'border-red-500 bg-red-950/30 shadow-xl shadow-red-950/50' 
+            : 'border-theme'
+        } rounded-xl p-3 shadow-lg cursor-grab node-card`;
+
+        card.onmousedown = (e) => startDrag(e, node);
+        card.onclick = (e) => { e.stopPropagation(); inspectNode(node.id); };
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-theme pb-1 mb-1.5">
+            <span class="text-xs font-bold font-mono text-sky-300 truncate">${node.label}</span>
+            <span class="w-2 h-2 rounded-full ${node.status === 'HEALTHY' ? 'bg-emerald-400' : 'bg-red-500 animate-ping'}"></span>
+          </div>
+          <div class="text-[10px] font-mono space-y-1 text-muted-theme">
+            <div class="flex justify-between"><span>Load:</span><span class="text-slate-200 font-semibold">${node.load}</span></div>
+            <div class="flex justify-between"><span>Proto:</span><span class="text-amber-300">${node.protocol.split(' ')[0]}</span></div>
+          </div>
+          <div class="mt-2 pt-1 border-t border-theme flex justify-between text-[9px] font-mono">
+            <span>RTU Status:</span>
+            <span class="${node.status === 'HEALTHY' ? 'text-emerald-400' : 'text-red-400'} font-bold">${node.rtu}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function startDrag(e, node) {
+      draggedNode = node;
+      const rect = e.currentTarget.getBoundingClientRect();
+      dragOffset.x = e.clientX - (rect.left + rect.width / 2);
+      dragOffset.y = e.clientY - (rect.top + rect.height / 2);
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', stopDrag);
+    }
+
+    function onDrag(e) {
+      if (!draggedNode) return;
+      const canvasRect = document.getElementById('canvas-container').getBoundingClientRect();
+      draggedNode.x = Math.max(80, Math.min(canvasRect.width - 80, e.clientX - canvasRect.left));
+      draggedNode.y = Math.max(40, Math.min(canvasRect.height - 40, e.clientY - canvasRect.top));
+      renderTopology();
+    }
+
+    function stopDrag() {
+      draggedNode = null;
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', stopDrag);
+    }
+
+    function simulateFiberOutage() {
+      const wRldc = nodes.find(n => n.id === 'w-rldc');
+      wRldc.status = 'CRITICAL';
+      wRldc.rtu = 'FIBER DISCONNECTED';
+
+      links.find(l => l.from === 'nldc' && l.to === 'w-rldc').status = 'BROKEN';
+      links.find(l => l.from === 'n-rldc' && l.to === 'w-rldc').status = 'REROUTED';
+
+      document.getElementById('metric-jitter').innerText = '12.80 ms (Rerouting)';
+      document.getElementById('metric-loss').innerText = '0.0380 %';
+
+      const statusElem = document.getElementById('topological-status');
+      statusElem.className = 'px-3 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold flex items-center gap-1.5';
+      statusElem.innerHTML = `<i data-lucide="alert-triangle" class="w-4 h-4"></i> N-1 REROUTED VIA RING MESH`;
+
+      renderTopology();
+      lucide.createIcons();
+    }
+
+    function simulateNetworkSpike() {
+      document.getElementById('metric-bandwidth').innerText = '94.2 Gbps (BURST)';
+      document.getElementById('metric-jitter').innerText = '3.84 ms';
+    }
+
+    function resetTopology() {
+      nodes.forEach(n => {
+        n.status = 'HEALTHY';
+        n.rtu = n.tier.includes('Tier 3') ? 'ONLINE' : 'SYNCED';
+        if (n.id === 'nldc') n.rtu = 'PRIMARY ACTIVE';
+      });
+
+      links.forEach(l => {
+        l.status = l.primary ? 'ACTIVE' : 'STANDBY';
+      });
+
+      document.getElementById('metric-jitter').innerText = '0.74 ms';
+      document.getElementById('metric-bandwidth').innerText = '22.8 Gbps';
+      document.getElementById('metric-loss').innerText = '0.0000 %';
+
+      const statusElem = document.getElementById('topological-status');
+      statusElem.className = 'px-3 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold flex items-center gap-1.5';
+      statusElem.innerHTML = `<i data-lucide="shield-check" class="w-4 h-4"></i> N-1 MESH TOPOLOGY INTACT`;
+
+      renderTopology();
+      lucide.createIcons();
+    }
+
+    renderTopology();
+    setInterval(() => {
+      document.getElementById('arch-timestamp').innerText = new Date().toISOString();
+    }, 1000);
+    lucide.createIcons();
+  </script>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-blue">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URJA RTA | Physical Grid Dynamics & AC Frequency Physics</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    .dark-blue {
+      --bg-main: #070f1e;
+      --bg-panel: #0f172a;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --grid-line: rgba(30, 41, 59, 0.5);
+    }
+    .light-white {
+      --bg-main: #f8fafc;
+      --bg-panel: #ffffff;
+      --bg-card: #f1f5f9;
+      --border-color: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --grid-line: rgba(203, 213, 225, 0.6);
+    }
+    .slate-grey {
+      --bg-main: #18181b;
+      --bg-panel: #27272a;
+      --bg-card: #3f3f46;
+      --border-color: #52525b;
+      --text-main: #fafafa;
+      --text-muted: #a1a1aa;
+      --grid-line: rgba(63, 63, 70, 0.5);
+    }
+    body { background-color: var(--bg-main); color: var(--text-main); transition: all 0.3s ease; }
+    .panel-bg { background-color: var(--bg-panel); }
+    .card-bg { background-color: var(--bg-card); }
+    .border-theme { border-color: var(--border-color); }
+    .text-muted-theme { color: var(--text-muted); }
+    .canvas-grid {
+      background-image: 
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden font-sans select-none">
+
+  <!-- Header -->
+  <header class="panel-bg border-b border-theme px-6 py-3 flex items-center justify-between z-20 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="bg-sky-500/20 p-2 rounded-lg border border-sky-400/30">
+        <i data-lucide="activity" class="w-6 h-6 text-sky-400"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
+          URJA RTA: Electromechanical & Wave Physics Engine
+          <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded">
+            DUAL-TRACE OSCILLOSCOPE & ROCOF SIMULATOR
+          </span>
+        </h1>
+        <p class="text-xs text-muted-theme">IEEE Standard Grid Waveform Analysis, Phase Lag (\(\phi\)), Reactive Impedance & RoCoF Dynamics</p>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2 text-xs font-mono mr-2">
+        <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+        <span id="phys-timestamp" class="text-amber-300 font-bold">2026-09-10T00:18:19Z</span>
+      </div>
+      <div class="flex card-bg p-1 rounded-lg border border-theme space-x-1 text-xs">
+        <button onclick="setTheme('dark-blue')" class="px-2.5 py-1 rounded font-medium">Dark Blue</button>
+        <button onclick="setTheme('light-white')" class="px-2.5 py-1 rounded font-medium">Light White</button>
+        <button onclick="setTheme('slate-grey')" class="px-2.5 py-1 rounded font-medium">Slate Grey</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Physics Workspace -->
+  <div class="flex flex-1 overflow-hidden">
+    
+    <!-- Left Controls Panel -->
+    <div class="w-96 panel-bg border-r border-theme p-5 flex flex-col space-y-4 overflow-y-auto shrink-0 z-10">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2 font-mono">
+        <i data-lucide="gauge" class="w-4 h-4"></i> Extended Grid Physics Parameters
+      </h2>
+
+      <div class="space-y-3.5 text-xs font-mono">
+        <div class="card-bg p-3 rounded-lg border border-theme space-y-2">
+          <div class="flex justify-between">
+            <span class="text-muted-theme">Target Frequency (\(f\)):</span>
+            <span id="val-freq" class="text-emerald-400 font-bold">50.00 Hz</span>
+          </div>
+          <input type="range" id="param-freq" min="47.5" max="52.5" step="0.02" value="50.00" oninput="updatePhysicsSim()" class="w-full accent-emerald-500">
+        </div>
+
+        <div class="card-bg p-3 rounded-lg border border-theme space-y-2">
+          <div class="flex justify-between">
+            <span class="text-muted-theme">Voltage Magnitude (\(V_{\text{rms}}\)):</span>
+            <span id="val-volts" class="text-sky-400 font-bold">230 V</span>
+          </div>
+          <input type="range" id="param-volts" min="180" max="260" value="230" oninput="updatePhysicsSim()" class="w-full accent-sky-500">
+        </div>
+
+        <div class="card-bg p-3 rounded-lg border border-theme space-y-2">
+          <div class="flex justify-between">
+            <span class="text-muted-theme">Rotor Inertia Constant (\(H\)):</span>
+            <span id="val-inertia" class="text-purple-400 font-bold">4.2 s</span>
+          </div>
+          <input type="range" id="param-inertia" min="1.0" max="8.0" step="0.1" value="4.2" oninput="updatePhysicsSim()" class="w-full accent-purple-500">
+        </div>
+
+        <div class="card-bg p-3 rounded-lg border border-theme space-y-2">
+          <div class="flex justify-between">
+            <span class="text-muted-theme">Power Factor (\(\cos\phi\)):</span>
+            <span id="val-pf" class="text-amber-400 font-bold">0.88 Lag</span>
+          </div>
+          <input type="range" id="param-pf" min="0.5" max="1.0" step="0.01" value="0.88" oninput="updatePhysicsSim()" class="w-full accent-amber-500">
+        </div>
+      </div>
+
+      <div class="card-bg p-3.5 rounded-lg border border-theme font-mono text-xs space-y-1.5">
+        <h3 class="font-bold text-amber-400 border-b border-theme pb-1">Power Relations</h3>
+        <p class="text-[10px] text-muted-theme">
+          \[ S = \sqrt{P^2 + Q^2} = V_{\text{rms}} \cdot I_{\text{rms}} \]
+        </p>
+      </div>
+    </div>
+
+    <!-- Right Oscilloscope Waveform Viewport -->
+    <div class="flex-1 canvas-grid p-6 overflow-y-auto space-y-5 flex flex-col">
+      
+      <!-- Oscilloscope Box -->
+      <div class="card-bg border border-theme rounded-xl p-5 shadow-xl flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold font-mono text-sky-400 flex items-center gap-2">
+            <i data-lucide="waves" class="w-4 h-4"></i> Dual-Trace Voltage (\(V\)) & Current (\(I\)) Waveform
+          </h2>
+          <div class="flex items-center space-x-4 text-[11px] font-mono">
+            <span class="flex items-center gap-1.5 text-sky-400"><span class="w-3 h-1 bg-sky-400 rounded"></span> Voltage (\(V\))</span>
+            <span class="flex items-center gap-1.5 text-amber-400"><span class="w-3 h-1 bg-amber-400 rounded"></span> Current (\(I\))</span>
+          </div>
+        </div>
+        <canvas id="physCanvas" width="900" height="300" class="w-full flex-1 rounded-lg bg-black/70 border border-theme"></canvas>
+      </div>
+
+      <!-- Extended Telemetry Readout Grid -->
+      <div class="grid grid-cols-6 gap-3 font-mono text-xs">
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">Active Power (\(P\))</span>
+          <span id="read-p" class="text-base font-bold text-emerald-400">412.5 MW</span>
+        </div>
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">Reactive Power (\(Q\))</span>
+          <span id="read-q" class="text-base font-bold text-amber-400">223.1 MVAR</span>
+        </div>
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">RoCoF (\(df/dt\))</span>
+          <span id="read-rocof" class="text-base font-bold text-sky-400">0.01 Hz/s</span>
+        </div>
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">Voltage THD</span>
+          <span id="read-thd" class="text-base font-bold text-purple-400">1.24 %</span>
+        </div>
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">Phase Shift (\(\phi\))</span>
+          <span id="read-phase" class="text-base font-bold text-amber-300">28.4°</span>
+        </div>
+        <div class="card-bg border border-theme p-2.5 rounded-lg">
+          <span class="text-muted-theme block text-[10px]">Grid State</span>
+          <span id="read-stability" class="text-base font-bold text-emerald-400">STABLE</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const physState = {
+      freq: 50.00,
+      volts: 230,
+      inertia: 4.2,
+      pf: 0.88,
+      t: 0
+    };
+
+    function setTheme(themeName) {
+      document.documentElement.className = themeName;
+    }
+
+    function updatePhysicsSim() {
+      physState.freq = parseFloat(document.getElementById('param-freq').value);
+      physState.volts = parseFloat(document.getElementById('param-volts').value);
+      physState.inertia = parseFloat(document.getElementById('param-inertia').value);
+      physState.pf = parseFloat(document.getElementById('param-pf').value);
+
+      document.getElementById('val-freq').innerText = `${physState.freq.toFixed(2)} Hz`;
+      document.getElementById('val-volts').innerText = `${physState.volts} V`;
+      document.getElementById('val-inertia').innerText = `${physState.inertia.toFixed(1)} s`;
+      document.getElementById('val-pf').innerText = `${physState.pf.toFixed(2)} Lag`;
+
+      const phiRad = Math.acos(physState.pf);
+      const phiDeg = (phiRad * (180 / Math.PI)).toFixed(1);
+      
+      const p = (physState.volts * 2.2 * physState.pf).toFixed(1);
+      const q = (physState.volts * 2.2 * Math.sin(phiRad)).toFixed(1);
+      const rocof = Math.abs((50.00 - physState.freq) / (2 * physState.inertia)).toFixed(2);
+      const thd = (1.1 + (Math.abs(50.00 - physState.freq) * 0.8)).toFixed(2);
+
+      document.getElementById('read-p').innerText = `${p} MW`;
+      document.getElementById('read-q').innerText = `${q} MVAR`;
+      document.getElementById('read-rocof').innerText = `${rocof} Hz/s`;
+      document.getElementById('read-thd').innerText = `${thd} %`;
+      document.getElementById('read-phase').innerText = `${phiDeg}°`;
+
+      const isStable = physState.freq >= 49.5 && physState.freq <= 50.5;
+      const stabElem = document.getElementById('read-stability');
+      stabElem.innerText = isStable ? 'STABLE' : 'TRIP WARN';
+      stabElem.className = `text-base font-bold ${isStable ? 'text-emerald-400' : 'text-red-400'}`;
+    }
+
+    function drawPhysicsCanvas() {
+      const canvas = document.getElementById('physCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerY = canvas.height / 2;
+      const vAmp = (physState.volts / 260) * (canvas.height * 0.32);
+      const phiRad = Math.acos(physState.pf);
+
+      // Voltage Waveform (Sky Blue)
+      ctx.beginPath();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = physState.freq < 49.5 || physState.freq > 50.5 ? '#ef4444' : '#38bdf8';
+
+      for (let x = 0; x < canvas.width; x++) {
+        const y = centerY + Math.sin((x * 0.02 * (physState.freq / 50.0)) + physState.t) * vAmp;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Current Waveform (Amber) - Shifted by phase lag phiRad
+      ctx.beginPath();
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = '#fbbf24';
+
+      for (let x = 0; x < canvas.width; x++) {
+        const y = centerY + Math.sin((x * 0.02 * (physState.freq / 50.0)) + physState.t - phiRad) * (vAmp * 0.7);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Zero Axis Grid Line
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(canvas.width, centerY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function stepPhysics() {
+      physState.t += 0.15;
+      document.getElementById('phys-timestamp').innerText = new Date().toISOString();
+      drawPhysicsCanvas();
+      requestAnimationFrame(stepPhysics);
+    }
+
+    updatePhysicsSim();
+    stepPhysics();
+    lucide.createIcons();
+  </script>
+</body>
+</html>
